@@ -1,0 +1,164 @@
+# =============================================================================
+# Hospice Forms (new_hoh) — production .gitignore
+# PHP public forms + CodeIgniter admin (manage/)
+# =============================================================================
+#
+# TRACKED (not listed here):
+#   - All PHP source, views, controllers, helpers, libraries
+#   - pdf/          → application PDF templates (jo_*.pdf, test_*.pdf, etc.)
+#   - vendor/       → frontend JS/CSS assets (Bootstrap, jQuery) — NOT Composer
+#   - css/, js/, fonts/, images/, fpdf/, fpdi/, phpmailer/, lang/
+#   - manage/system/, manage/application/ (except cache & logs)
+#
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# USER-GENERATED DOCUMENTS
+# -----------------------------------------------------------------------------
+# Output from job applications, agreements, HBV forms, certificates,
+# competency forms, service logs, training certs, influenza forms, etc.
+# Written by FPDF via $pdf->Output(..., 'F') across jo_process.php,
+# process.php, generate_certificates.php, generate_competency.php, etc.
+pdf_files/*
+!pdf_files/.gitkeep
+!pdf_files/index.php
+
+# Uploaded RN evaluation PDFs (save_rn_evaluation_to_server.php)
+pdf_files/registered_nurse_evaluations/*
+!pdf_files/registered_nurse_evaluations/.gitkeep
+
+
+# -----------------------------------------------------------------------------
+# USER UPLOADS & SIGNATURES
+# -----------------------------------------------------------------------------
+# Resume files from job application forms (move_uploaded_file)
+resume_files/*
+!resume_files/.gitkeep
+
+# Applicant canvas signatures and admin-uploaded signature images
+# (file_put_contents / CodeIgniter upload in Users.php)
+signatures/*
+!signatures/.gitkeep
+
+# Staff signature images uploaded via admin panel.
+# Exception: default agency signature embedded in generated PDFs.
+staff_signatures/*
+!staff_signatures/liana_berzins_signature.png
+!staff_signatures/.gitkeep
+
+# Saved performance evaluation HTML forms (save_evaluation.php)
+performace_eva/**/*
+!performace_eva/**/.gitkeep
+
+# Legacy product image uploads (manage/products/ — unused e-commerce artifacts)
+manage/products/*
+!manage/products/.gitkeep
+
+
+# -----------------------------------------------------------------------------
+# CODEIGNITER RUNTIME (manage/)
+# -----------------------------------------------------------------------------
+# Framework cache (query cache, session files when sess_save_path is set here)
+manage/application/cache/*
+!manage/application/cache/index.html
+!manage/application/cache/.htaccess
+
+# Application error / debug logs
+manage/application/logs/*
+!manage/application/logs/index.html
+!manage/application/logs/.htaccess
+
+# Composer vendor for CodeIgniter dev dependencies (mikey179/vfsStream).
+# Install with: cd manage && composer install
+# NOTE: Root /vendor/ is frontend assets — do NOT add it here.
+manage/vendor/
+
+
+# -----------------------------------------------------------------------------
+# DATABASE CREDENTIALS (copy from *.example.php on each machine)
+# -----------------------------------------------------------------------------
+database.php
+!database.example.php
+
+manage/application/config/database.php
+!manage/application/config/database.example.php
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT & LOCAL OVERRIDES
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+database.local.php
+manage/application/config/database.local.php
+
+
+# -----------------------------------------------------------------------------
+# OS-SPECIFIC & ARCHIVE JUNK
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+__MACOSX/
+
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+
+# -----------------------------------------------------------------------------
+# IDE / EDITOR
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+nbproject/
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+
+
+# -----------------------------------------------------------------------------
+# LOGS, BACKUPS & TEMPORARY FILES
+# -----------------------------------------------------------------------------
+*.log
+*.bak
+*.tmp
+*.temp
+*.stackdump
+error_log
+php_errors.log
+debug.log
+
+# Database dumps / backups (migration .sql files in repo root are kept)
+*.sql.gz
+*.sql.bak
+*_backup.sql
+dump*.sql
+
+
+# -----------------------------------------------------------------------------
+# PHP TOOLING
+# -----------------------------------------------------------------------------
+composer.phar
+.phpunit.result.cache
+phpunit.xml
+
+# Node (if added for future frontend builds)
+node_modules/

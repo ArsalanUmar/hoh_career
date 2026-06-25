@@ -1,0 +1,175 @@
+.pads{
+
+  padding:6px;
+
+  margin:2px;
+
+}
+
+
+
+.btn{
+
+ max-width: 100px;
+
+}
+
+
+
+h3.announce{
+
+	background: #8ABC3C;
+
+    color: #fff;
+
+    padding: 4px;
+
+    text-align: center;
+
+    border-radius: 6px;
+
+}
+
+
+
+h3.navy{
+
+    background: #39bba4;
+
+    color: #fff;
+
+    padding: 4px;
+
+    text-align: center;
+
+    border-radius: 6px;
+
+}
+
+
+
+.success{
+
+	background: #23C37A;
+
+    padding: 3px;
+
+    margin-bottom: 5px;
+
+    border-radius: 2px;
+
+    color: #fff;
+
+    text-align: center;
+
+}
+
+
+
+.error{
+
+	background: #E4536C;
+
+	color: #fff;
+
+	padding: 3px;
+
+}
+
+
+
+div.user_list{
+
+	background: pink;
+
+    padding: 3px;
+
+    margin-bottom:2px;
+
+}
+
+
+
+button#usern_remove, button#usere_remove , button#rem_attach {
+
+	float:right;
+
+	font-size: 10px;
+
+}
+
+
+
+input[readonly]{
+
+	border:none;
+
+}
+
+
+
+
+
+
+
+.login-page, .register-page{
+
+    background: #5C258D; /* fallback for old browsers */
+
+    background: -webkit-linear-gradient(to left, #5C258D , #4389A2); /* Chrome 10-25, Safari 5.1-6 */
+
+    background: linear-gradient(to left, #5C258D , #4389A2); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+
+}
+
+
+
+.login-logo{
+
+    color: #436385;
+
+    background: #D6DDE6;
+
+/*        border: 2px solid #614385;
+
+*/    padding: 4px;
+
+    font-family: initial;
+
+}
+
+
+
+.datepicker{
+
+    z-index:9999!important;
+
+}
+
+
+
+.red{
+
+    color:red;
+
+}
+
+
+
+.green{
+
+    color:green;
+
+}
+
+
+
+.bold{
+
+    font-weight:bold;
+
+}
+
+.mt-2 {
+    margin-top: 0.6rem;
+}
