@@ -640,12 +640,12 @@ class Users extends CI_Controller {
 
 		// echo "<pre>",print_r($this->input->post()),"</pre>";die();
          if($tbl=='tbl_staff'){
-			$send = array("status"=>'mark_to_archived'); 
+			$send = array("status"=>'mark_to_arch'); 
 			$this->umodel->update($send,$id,'staff');
 			// $this->db->delete($tbl , array('id' => $id)); 
          }
 		 if($tbl=='tbl_job_applications'){
-		 		$send = array("status"=>'mark_to_archived'); 
+		 		$send = array("status"=>'mark_to_arch'); 
 					$this->umodel->update($send,$id,'job_applications');
 		 }
 		   if($tbl=='tbl_test_certificates'){
@@ -1531,7 +1531,7 @@ class Users extends CI_Controller {
  					);
 
  		$table_name= 'tbl_influenza_forms';
- 			$response = $this->umodel->get($table_name);
+ 			$response = $this->umodel->get_influenza_forms();
 
  				// echo "<pre>",print_r($response),"</pre>";
 

@@ -381,6 +381,11 @@ while ($details = $result_logged->fetch_assoc()) {
 
 
 		<?php  }?>
+		<?php if (isset($_GET['e']) && $_GET['e'] === 'archived') { ?>
+		<div class="badge-md mt-4 m-4 badge-danger">
+			&nbsp;&nbsp;&nbsp;In-service log processing is not available for archived employees.
+		</div>
+		<?php } ?>
 			<?php
 			if(isset($_GET['s']) && !empty($_GET['s'])){
 				

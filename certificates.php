@@ -174,6 +174,11 @@ while ($details = $result_logged->fetch_assoc()) {
 					&nbsp;&nbsp;&nbsp;Please select a staff name for this certificate and try again.
 				</div>
 			<?php } ?>
+			<?php if (isset($_GET['e']) && $_GET['e'] === 'archived') { ?>
+				<div class="badge-md mt-4 m-4 badge-danger">
+					&nbsp;&nbsp;&nbsp;Certificate generation is not available for archived employees.
+				</div>
+			<?php } ?>
 			<div class="contact100-form-title-2">
 
 				&nbsp;&nbsp;Test Certificates

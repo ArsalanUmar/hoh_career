@@ -6,7 +6,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Users_model extends CI_Model {
 
-
+    const STATUS_ACTIVE = 'active';
+    const STATUS_MARK_TO_ARCH = 'mark_to_arch';
+    const STATUS_ARCHIVED = 'archived';
 
     /**
 
@@ -46,6 +48,17 @@ class Users_model extends CI_Model {
 
         parent::__construct();
 
+    }
+
+    private function _exclude_archived_employees($alias = 'tbl_job_applications')
+    {
+        $this->db->where($alias.'.status !=', self::STATUS_MARK_TO_ARCH);
+        $this->db->where($alias.'.status !=', self::STATUS_ARCHIVED);
+    }
+
+    private function _active_employees_only($alias = 'tbl_job_applications')
+    {
+        $this->db->where($alias.'.status', self::STATUS_ACTIVE);
     }
 
 
@@ -231,8 +244,7 @@ class Users_model extends CI_Model {
         $this->db->join('tbl_job_applications',"tbl_test_certificates.employee_id = tbl_job_applications.id","LEFT");
 
         $this->db->join('tbl_custom_certificates',"tbl_custom_certificates.employee_id = tbl_job_applications.id","LEFT");
-        $this->db->where('status != "mark_to_arch"',NULL, false);
-        $this->db->where('status != "archived"',NULL, false);
+        $this->_exclude_archived_employees('tbl_job_applications');
         $this->db->where('(tbl_custom_certificates.employee_id IS NOT NULL OR tbl_test_certificates.employee_id IS NOT NULL)',NULL, false);
 
 
@@ -264,7 +276,7 @@ class Users_model extends CI_Model {
         $this->db->from('tbl_custom_certificates');
 
         $this->db->join('tbl_job_applications',"tbl_custom_certificates.employee_id = tbl_job_applications.id","LEFT");
-        $this->db->where('tbl_job_applications.status !="mark_to_arch"',NULL,false);
+        $this->_exclude_archived_employees('tbl_job_applications');
 
 
 
@@ -295,7 +307,7 @@ class Users_model extends CI_Model {
         $this->db->from('tbl_inservice_logs');
 
         $this->db->join('tbl_job_applications',"tbl_inservice_logs.employee_id = tbl_job_applications.id","LEFT");
-        $this->db->where('tbl_job_applications.status !="mark_to_arch"',NULL,false);
+        $this->_exclude_archived_employees('tbl_job_applications');
 
 
 
@@ -438,7 +450,7 @@ class Users_model extends CI_Model {
 
 
 
-          $this->db->where('status','active');
+          $this->db->where('status', self::STATUS_ACTIVE);
           $this->db->where('email is NOT NULL',NULL, false);
             $this->db->where('date_of_birth is NOT NULL',NULL, false);
             $this->db->where('sss_number is NOT NULL',NULL, false);
@@ -472,7 +484,7 @@ class Users_model extends CI_Model {
           $this->db->where('middle_initial is  NULL',NULL, false);
             $this->db->where('date_of_birth is NULL',NULL, false);
             $this->db->where('sss_number is  NULL',NULL, false);
-            $this->db->where('status','active');
+            $this->db->where('status', self::STATUS_ACTIVE);
 
         
 
@@ -488,6 +500,32 @@ class Users_model extends CI_Model {
 
  }
 
+ public function get_influenza_forms($id = NULL)
+ {
+        $this->db->select('tbl_influenza_forms.*');
+        $this->db->from('tbl_influenza_forms');
+        $this->db->join(
+            'tbl_job_applications',
+            "LOWER(TRIM(tbl_influenza_forms.name)) = LOWER(TRIM(CONCAT(tbl_job_applications.first_name, ' ', tbl_job_applications.last_name)))",
+            'LEFT'
+        );
+        $this->db->group_start();
+        $this->db->where('tbl_job_applications.id IS NULL', NULL, FALSE);
+        $this->db->or_where('tbl_job_applications.status', self::STATUS_ACTIVE);
+        $this->db->group_end();
+
+        if (!empty($id)) {
+            $this->db->where('tbl_influenza_forms.id', $id);
+        }
+
+        $this->db->order_by('tbl_influenza_forms.id', 'DESC');
+        $this->db->group_by('tbl_influenza_forms.id');
+
+        $query = $this->db->get();
+
+        return $query->result();
+ }
+
 
  public function get_archived_applications(){
 
@@ -499,7 +537,7 @@ class Users_model extends CI_Model {
 
 
 
-            $this->db->where('status','mark_to_arch');
+            $this->db->where('status', self::STATUS_MARK_TO_ARCH);
 
         
 

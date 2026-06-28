@@ -1,5 +1,6 @@
 <?php
 require_once('database.php');
+require_once('employee_status.php');
 
 $path1 = 'fpdf/fpdf.php';
 $path2 = 'fpdi/autoload.php';
@@ -153,6 +154,9 @@ if (!$res_emp || $res_emp->num_rows === 0) {
     die('Employee not found.');
 }
 $employee = $res_emp->fetch_assoc();
+if (!employee_is_active($employee)) {
+    die('Certificate generation is not available for archived employees.');
+}
 $employee_name = ucwords(strtolower($employee['first_name'].' '.$employee['last_name']));
 $employee_signature = str_replace('../', '', $employee['signature_path']);
 

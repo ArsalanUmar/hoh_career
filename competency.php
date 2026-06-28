@@ -47,7 +47,7 @@ while ($details = $result_logged->fetch_assoc()) {
 
 
 
-		 $sql = "SELECT tc.*,tj.first_name,tj.last_name FROM `tbl_competencies` tc LEFT JOIN tbl_job_applications tj ON tc.employee_id = tj.id  WHERE tj.status!='mark_to_arch' ORDER BY date_added ASC ";
+		 $sql = "SELECT tc.*,tj.first_name,tj.last_name FROM `tbl_competencies` tc LEFT JOIN tbl_job_applications tj ON tc.employee_id = tj.id  WHERE tj.status='active' ORDER BY date_added ASC ";
 		  $result_logged = $conn->query($sql);
 		  $competencies = array();
 		  	while ($details = $result_logged->fetch_assoc() ) {
@@ -179,6 +179,11 @@ while ($details = $result_logged->fetch_assoc()) {
 
 
 		<?php exit; }?>
+		<?php if (isset($_GET['e']) && $_GET['e'] === 'archived') { ?>
+		<div class="badge-md mt-4 m-4 badge-danger">
+			&nbsp;&nbsp;&nbsp;Competency generation is not available for archived employees.
+		</div>
+		<?php } ?>
 		
 		<?php
 		// Display delete success/error messages

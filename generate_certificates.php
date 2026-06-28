@@ -3,6 +3,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\SMTP;
     require_once('database.php');
+    require_once('employee_status.php');
 
   $path1 = 'fpdf/fpdf.php';
   $path2 = 'fpdi/autoload.php';
@@ -96,6 +97,10 @@ use PHPMailer\PHPMailer\SMTP;
       $sql = "SELECT * FROM `tbl_job_applications` where id='".$emp_id."'";
       $result_logged = $conn->query($sql);
        $employee_details= $result_logged->fetch_assoc();
+       if (!employee_is_active($employee_details)) {
+        header('Location: certificates.php?e=archived');
+        exit;
+       }
        // $employee_details = $employee_details_raw[0];
 
       $sql = "SELECT * FROM `tbl_staff` WHERE staff_id='".$staff_id."' AND status='active' LIMIT 1";
