@@ -70,13 +70,9 @@ function hh_pdf_write_answer_circled($pdf, $x, $y, $label)
  *
  * @param float $leftShiftMm Nudge left so the circle clears printed question numbers (use 0 if already aligned).
  */
-function test_pdf_write_answer_circled($pdf, $x, $y, $raw_label, $fontSize = 9, $leftShiftMm = 8)
+function test_pdf_write_text_circled($pdf, $x, $y, $label, $fontSize = 9, $leftShiftMm = 8)
 {
-    $t = trim((string) $raw_label);
-    if ($t === '') {
-        return;
-    }
-    $label = hh_pdf_format_answer_display($t);
+    $label = trim((string) $label);
     if ($label === '') {
         return;
     }
@@ -94,4 +90,37 @@ function test_pdf_write_answer_circled($pdf, $x, $y, $raw_label, $fontSize = 9, 
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetXY($x, $y);
     $pdf->Write(0, $label);
+}
+
+function test_pdf_write_answer_circled($pdf, $x, $y, $raw_label, $fontSize = 9, $leftShiftMm = 8)
+{
+    $t = trim((string) $raw_label);
+    if ($t === '') {
+        return;
+    }
+    $label = hh_pdf_format_answer_display($t);
+    if ($label === '') {
+        return;
+    }
+    test_pdf_write_text_circled($pdf, $x, $y, $label, $fontSize, $leftShiftMm);
+}
+
+function pdf_place_staff_signature($pdf, $staff_signature, $x = 190, $y = 164, $w = 60, $h = 20)
+{
+    if (empty($staff_signature)) {
+        return;
+    }
+
+    $candidates = array($staff_signature);
+    if (!preg_match('#^([a-zA-Z]:)?[\\\\/]#', $staff_signature)) {
+        $candidates[] = __DIR__ . DIRECTORY_SEPARATOR . $staff_signature;
+        $candidates[] = __DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $staff_signature);
+    }
+
+    foreach ($candidates as $path) {
+        if (is_string($path) && $path !== '' && file_exists($path)) {
+            $pdf->Image($path, $x, $y, $w, $h, 'PNG');
+            return;
+        }
+    }
 }

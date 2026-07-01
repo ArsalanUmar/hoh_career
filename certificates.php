@@ -179,6 +179,11 @@ while ($details = $result_logged->fetch_assoc()) {
 					&nbsp;&nbsp;&nbsp;Certificate generation is not available for archived employees.
 				</div>
 			<?php } ?>
+			<?php if (isset($_GET['e']) && $_GET['e'] === '1') { ?>
+				<div class="badge-md mt-4 m-4 badge-danger">
+					&nbsp;&nbsp;&nbsp;Certificate could not be saved. Please try again or contact support.
+				</div>
+			<?php } ?>
 			<div class="contact100-form-title-2">
 
 				&nbsp;&nbsp;Test Certificates

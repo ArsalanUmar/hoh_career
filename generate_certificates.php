@@ -3,13 +3,42 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\SMTP;
     require_once('database.php');
-    require_once('employee_status.php');
+    $employee_status_file = __DIR__ . '/employee_status.php';
+    if (is_file($employee_status_file)) {
+        require_once $employee_status_file;
+    } elseif (!function_exists('employee_is_active')) {
+        function employee_is_active($employee)
+        {
+            return !empty($employee)
+                && isset($employee['status'])
+                && $employee['status'] === 'active';
+        }
+    }
 
   $path1 = 'fpdf/fpdf.php';
   $path2 = 'fpdi/autoload.php';
   require_once($path1);
   require_once($path2);
   require_once __DIR__ . '/hand_hygiene_pdf_marks.php';
+  if (!function_exists('pdf_place_staff_signature')) {
+      function pdf_place_staff_signature($pdf, $staff_signature, $x = 190, $y = 164, $w = 60, $h = 20)
+      {
+          if (empty($staff_signature)) {
+              return;
+          }
+          $candidates = array($staff_signature);
+          if (!preg_match('#^([a-zA-Z]:)?[\\\\/]#', $staff_signature)) {
+              $candidates[] = __DIR__ . DIRECTORY_SEPARATOR . $staff_signature;
+              $candidates[] = __DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $staff_signature);
+          }
+          foreach ($candidates as $path) {
+              if (is_string($path) && $path !== '' && file_exists($path)) {
+                  $pdf->Image($path, $x, $y, $w, $h, 'PNG');
+                  return;
+              }
+          }
+      }
+  }
   // require_once('database.php');
 
   use \setasign\Fpdi\Fpdi;
@@ -110,8 +139,8 @@ use PHPMailer\PHPMailer\SMTP;
         header('Location: certificates.php?e=staff');
         exit;
        }
-        $employee_signature = str_replace("../", "", $employee_details['signature_path']);
-        $staff_signature = str_replace("../", "", $staff_details['signature_path']);
+        $employee_signature = str_replace("../", "", (string) ($employee_details['signature_path'] ?? ''));
+        $staff_signature = str_replace("../", "", (string) ($staff_details['signature_path'] ?? ''));
         $employee_name = ucwords(strtolower($employee_details['first_name']." ".$employee_details['last_name']));
         $staff_name = ucwords(strtolower($staff_details['staff_name']));
         $post['employee_name'] = $employee_name;
@@ -453,7 +482,7 @@ use PHPMailer\PHPMailer\SMTP;
              }
            
 
-              $query = "INSERT INTO `tbl_test_certificates` (`employee_id`,`emergency_test_file_path`,`emergency_certificate_file_path`,`emergency_test_date`,`emergency_test_score`,`emergency_staff_id`,`emerg_num_hour`,`emergency_q_1`,`emergency_q_2`,`emergency_q_3`,`emergency_q_4`,`emergency_q_5`,`emergency_q_6`) VALUES ('".$employee_id."','".$pdf_test_file_path."','".$certificate_file_path."','".$emergency_date_filled."','".$emergency_score."','".$emerg_num_hour."','".$emergency_staff_name."','".$emerg_q1."','".$emerg_q2."','".$emerg_q3."','".$emerg_q4."','".$emerg_q5."','".$emerg_q6."')";
+              $query = "INSERT INTO `tbl_test_certificates` (`employee_id`,`emergency_test_file_path`,`emergency_certificate_file_path`,`emergency_test_date`,`emergency_test_score`,`emergency_staff_id`,`emerg_num_hour`,`emergency_q_1`,`emergency_q_2`,`emergency_q_3`,`emergency_q_4`,`emergency_q_5`,`emergency_q_6`) VALUES ('".$employee_id."','".$pdf_test_file_path."','".$certificate_file_path."','".$emergency_date_filled."','".$emergency_score."','".$emergency_staff_name."','".$emerg_num_hour."','".$emerg_q1."','".$emerg_q2."','".$emerg_q3."','".$emerg_q4."','".$emerg_q5."','".$emerg_q6."')";
          
            }elseif($test_type == 'covid'){
             $employee_id = $covid_employee_name;
@@ -540,6 +569,10 @@ use PHPMailer\PHPMailer\SMTP;
           
           // echo $query;die();
           $result = $con->query($query);
+          if ($result === false) {
+            header('Location: certificates.php?e=1');
+            exit;
+          }
           $test_cert_id = $con->insert_id;
 
           // $pdf_file_path =  send_mail($file_name,$data[1],$data2[1],$name,$date,$_POST);
@@ -549,11 +582,15 @@ use PHPMailer\PHPMailer\SMTP;
 
                $sql = "SELECT tbl_test_certificates.*,tbl_job_applications.first_name, tbl_job_applications.last_name FROM `tbl_test_certificates` LEFT JOIN tbl_job_applications on tbl_job_applications.id = tbl_test_certificates.employee_id where employee_id='".$employee_id."'";
           $result_logged = $conn->query($sql);
-          $employee_test_record= $result_logged->fetch_assoc();
-          $employee_test_record['staff_name'] = $cert_staff_name;
+          $employee_test_record= $result_logged ? $result_logged->fetch_assoc() : null;
+          if (empty($employee_test_record)) {
+            header('Location: certificates.php?e=1');
+            exit;
+          }
+          $pdf_post = prepare_certificate_pdf_data($test_type, $post, $employee_test_record, $test_score, is_array($employee_details) ? $employee_details : array(), $cert_staff_name);
           // echo "<pre>",print_r($employee_test_record),"</pre>";die();
          // save_pdf($html,$mySignature,"signatures/".$file_name2,"signatures/".$file_name3,$file_name_pdf,$pdf_consent_file,$post);
-          save_pdf($html,$test_type,$test_score,$test_pass,$employee_signature,$cert_staff_signature,$pdf_test_file_path,$certificate_file_path,$employee_test_record);
+          save_pdf($html,$test_type,$test_score,$test_pass,$employee_signature,$cert_staff_signature,$pdf_test_file_path,$certificate_file_path,$pdf_post);
 
           // send_mail($file_name,"flippincrazyllc@yahoo.com",$name,$date,$_POST);
           // $send_mail =send_mail($file_name,$_POST['email'],$name,$date,$_POST,false,$pdf_consent_file);
@@ -693,6 +730,9 @@ Admin
   }
 
   function translate($val){
+    if ($val === null || $val === '') {
+      return '';
+    }
     $return_val = $val;
     if($val=='t'){
          $return_val = 'true';
@@ -702,7 +742,62 @@ Admin
     return $return_val;
   }
 
+  function prepare_certificate_pdf_data($test_type, array $post, $record, $test_score, array $employee_details, $staff_name)
+  {
+    $data = is_array($record) ? $record : array();
+    $data['staff_name'] = $staff_name;
+    $data['first_name'] = $employee_details['first_name'] ?? ($data['first_name'] ?? '');
+    $data['last_name'] = $employee_details['last_name'] ?? ($data['last_name'] ?? '');
+
+    $maps = array(
+      'waive' => array('score' => 'waived_test_score', 'date' => array('waived_test_date', 'waived_date_filled'), 'hour' => array('waived_num_hour', 'waived_num_hour'), 'q' => array('wave_q', 'waived_q_', 10)),
+      'hepab' => array('score' => 'hepa_test_score', 'date' => array('hepa_test_date', 'hepab_date_filled'), 'hour' => array('hepa_num_hour', 'hepa_num_hour'), 'q' => array('hepab_q', 'hepa_q_', 11)),
+      'harass' => array('score' => 'harass_test_score', 'date' => array('harass_test_date', 'harass_date_filled'), 'hour' => array('harass_num_hour', 'harass_num_hour'), 'q' => array('harass_q', 'harass_q_', 14)),
+      'handhygiene' => array('score' => 'hygiene_test_score', 'date' => array('hygiene_test_date', 'handhygiene_date_filled'), 'hour' => array('hh_num_hour', 'hh_num_hour'), 'q' => array('hh_q', 'hygiene_q_', 7)),
+      'emergency' => array('score' => 'emergency_test_score', 'date' => array('emergency_test_date', 'emergency_date_filled'), 'hour' => array('emerg_num_hour', 'emerg_num_hour'), 'q' => array('emerg_q', 'emergency_q_', 6)),
+      'covid' => array('score' => 'covid_test_score', 'date' => array('covid_test_date', 'covid_date_filled'), 'hour' => array('covid_num_hour', 'covid_num_hour'), 'q' => array('covid_q', 'covid_q_', 7)),
+      'bp' => array('score' => 'bloodpatho_test_score', 'date' => array('bloodpatho_test_date', 'bloodpatho_date_filled'), 'hour' => array('patho_num_hour', 'patho_num_hour'), 'q' => array('bp_q', 'bloodpatho_q_', 20)),
+      'gluco' => array('score' => 'glucometer_test_score', 'date' => array('glucometer_test_date', 'gluco_date_filled'), 'hour' => array('gluco_num_hour', 'gluco_num_hour'), 'q' => array('gluco_q', 'glucometer_q_', 17)),
+    );
+
+    if (!isset($maps[$test_type])) {
+      return $data;
+    }
+
+    $m = $maps[$test_type];
+    $data[$m['score']] = $test_score;
+    $data[$m['date'][0]] = $post[$m['date'][1]] ?? ($data[$m['date'][0]] ?? '');
+    $data[$m['hour'][0]] = $post[$m['hour'][1]] ?? ($data[$m['hour'][0]] ?? '');
+
+    list($form_prefix, $db_prefix, $count) = $m['q'];
+    for ($i = 1; $i <= $count; $i++) {
+      $form_key = $form_prefix.$i;
+      $db_key = $db_prefix.$i;
+      if (isset($post[$form_key]) && $post[$form_key] !== '') {
+        $data[$db_key] = $post[$form_key];
+      } elseif (!isset($data[$db_key])) {
+        $data[$db_key] = '';
+      }
+    }
+
+    return $data;
+  }
+
+  function ensure_certificate_pdf_dir($file_path)
+  {
+      if (empty($file_path)) {
+          return;
+      }
+      $dir = dirname($file_path);
+      if ($dir === '.' || $dir === '' || is_dir($dir)) {
+          return;
+      }
+      @mkdir($dir, 0755, true);
+  }
+
   function save_pdf($html,$test_type=NULL,$test_score=NULL,$test_pass=true,$employee_signature="",$staff_signature="",$pdf_test_file_path="",$certificate_file_path="",$post=array()){
+    ensure_certificate_pdf_dir($pdf_test_file_path);
+    ensure_certificate_pdf_dir($certificate_file_path);
     if($test_type == 'waive'){
         $date_label=date('m/d/Y',strtotime($post['waived_test_date']));
 
@@ -844,7 +939,7 @@ Admin
            // echo "<pre>",print_r($size),"</pre>";die();
             // $pdf->Cell( 40, 40, $pdf->Image($staff_signature, 177, 158, 60), 1, 0, 'C', false );
 
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
           $pdf->SetXY(172 ,180);  
            $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
                 $pdf->Output($certificate_file_path,'F');//exit;
@@ -897,25 +992,12 @@ Admin
         $pdf->Write(0, $post['hepa_test_score']."/11");
         $pdf->SetTextColor(0,0,0);
         $pdf->SetFont('Arial','',9);  
-        $pdf->SetXY(22,57);  
-        $pdf->Write(0, translate($post['hepa_q_1']));
-
-        $pdf->SetXY(22,92);  
-        $pdf->Write(0,translate($post['hepa_q_2']));
-
-
-        $pdf->SetXY(22,126);  
-        $pdf->Write(0,translate($post['hepa_q_3']));
-
-         $pdf->SetXY(22,155);  
-        $pdf->Write(0,translate($post['hepa_q_4']));
-    
-         $pdf->SetXY(22,185);  
-        $pdf->Write(0,translate($post['hepa_q_5']));
-
-
-        $pdf->SetXY(22,215);  
-        $pdf->Write(0,translate($post['hepa_q_6']));
+        test_pdf_write_answer_circled($pdf, 22, 57, translate($post['hepa_q_1']));
+        test_pdf_write_answer_circled($pdf, 22, 92, translate($post['hepa_q_2']));
+        test_pdf_write_answer_circled($pdf, 22, 126, translate($post['hepa_q_3']));
+        test_pdf_write_answer_circled($pdf, 22, 155, translate($post['hepa_q_4']));
+        test_pdf_write_answer_circled($pdf, 22, 185, translate($post['hepa_q_5']));
+        test_pdf_write_answer_circled($pdf, 22, 215, translate($post['hepa_q_6']));
 
         $pdf->AddPage();  
         // set the sourcefile  
@@ -924,20 +1006,11 @@ Admin
         $tplIdx = $pdf->importPage(2);  
         // use the imported page and place it at point 10,10 with a width of 200 mm   (This is the image of the included pdf)
         $pdf->useTemplate($tplIdx, 10, 10, 200);  
-         $pdf->SetXY(22,35);  
-        $pdf->Write(0, translate($post['hepa_q_7']));
-
-        $pdf->SetXY(22,65);  
-        $pdf->Write(0, translate($post['hepa_q_8']));
-
-        $pdf->SetXY(22,95);  
-        $pdf->Write(0, translate($post['hepa_q_9']));
-
-        $pdf->SetXY(22,127);  
-        $pdf->Write(0, translate($post['hepa_q_10']));
-
-        $pdf->SetXY(22,154);  
-        $pdf->Write(0, translate($post['hepa_q_11']));
+        test_pdf_write_answer_circled($pdf, 22, 35, translate($post['hepa_q_7']));
+        test_pdf_write_answer_circled($pdf, 22, 65, translate($post['hepa_q_8']));
+        test_pdf_write_answer_circled($pdf, 22, 95, translate($post['hepa_q_9']));
+        test_pdf_write_answer_circled($pdf, 22, 127, translate($post['hepa_q_10']));
+        test_pdf_write_answer_circled($pdf, 22, 154, translate($post['hepa_q_11']));
         $pdf->SetXY(62 ,216);  
         $pdf->Write(0, ucwords($post['first_name']." ".$post['last_name']));
     
@@ -978,7 +1051,7 @@ Admin
            $pdf->SetFont('Arial','',12);  
             $pdf->SetXY(60 ,180);  
            $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
           $pdf->SetXY(172 ,180);  
            $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
            $pdf->Output($certificate_file_path,'F');//die();
@@ -1026,28 +1099,13 @@ Admin
         $pdf->Write(0, $post['harass_test_score']."/14");
         $pdf->SetTextColor(0,0,0);
         $pdf->SetFont('Arial','',9);  
-        $pdf->SetXY(18,69);  
-        $pdf->Write(0, translate($post['harass_q_1']));
-
-        $pdf->SetXY(18,92);  
-        $pdf->Write(0,translate($post['harass_q_2']));
-
-        $pdf->SetXY(18,121);  
-        $pdf->Write(0,translate($post['harass_q_3']));
-
-         $pdf->SetXY(18,144);  
-        $pdf->Write(0,translate($post['harass_q_4']));
-
-        $pdf->SetXY(18,174);  
-        $pdf->Write(0,translate($post['harass_q_5']));
-
-        $pdf->SetXY(18,209);  
-        $pdf->Write(0,translate($post['harass_q_6']));
-
-
-        $pdf->SetXY(18,239);  
-        $pdf->Write(0,translate($post['harass_q_7']));
-
+        test_pdf_write_answer_circled($pdf, 18, 69, translate($post['harass_q_1']));
+        test_pdf_write_answer_circled($pdf, 18, 92, translate($post['harass_q_2']));
+        test_pdf_write_answer_circled($pdf, 18, 121, translate($post['harass_q_3']));
+        test_pdf_write_answer_circled($pdf, 18, 144, translate($post['harass_q_4']));
+        test_pdf_write_answer_circled($pdf, 18, 174, translate($post['harass_q_5']));
+        test_pdf_write_answer_circled($pdf, 18, 209, translate($post['harass_q_6']));
+        test_pdf_write_answer_circled($pdf, 18, 239, translate($post['harass_q_7']));
 
         $pdf->AddPage();  
         // set the sourcefile  
@@ -1058,26 +1116,13 @@ Admin
         $pdf->useTemplate($tplIdx, 10, 10, 200);  
         // now write some text above the imported page
         $pdf->SetTextColor(0,0,0);
-        $pdf->SetXY(18,21);  
-        $pdf->Write(0, translate($post['harass_q_8']));
-
-        $pdf->SetXY(18,43);  
-        $pdf->Write(0, translate($post['harass_q_9']));
-
-        $pdf->SetXY(18,66);  
-        $pdf->Write(0, translate($post['harass_q_10']));
-
-        $pdf->SetXY(18,99);  
-        $pdf->Write(0, translate($post['harass_q_11']));
-
-        $pdf->SetXY(18,130);  
-        $pdf->Write(0, translate($post['harass_q_12']));
-
-        $pdf->SetXY(18,160);  
-        $pdf->Write(0, translate($post['harass_q_13']));
-
-          $pdf->SetXY(18,195);  
-        $pdf->Write(0, translate($post['harass_q_14']));
+        test_pdf_write_answer_circled($pdf, 18, 21, translate($post['harass_q_8']));
+        test_pdf_write_answer_circled($pdf, 18, 43, translate($post['harass_q_9']));
+        test_pdf_write_answer_circled($pdf, 18, 66, translate($post['harass_q_10']));
+        test_pdf_write_answer_circled($pdf, 18, 99, translate($post['harass_q_11']));
+        test_pdf_write_answer_circled($pdf, 18, 130, translate($post['harass_q_12']));
+        test_pdf_write_answer_circled($pdf, 18, 160, translate($post['harass_q_13']));
+        test_pdf_write_answer_circled($pdf, 18, 195, translate($post['harass_q_14']));
 
         $pdf->Output($pdf_test_file_path,'F');//die();
         if($test_pass){
@@ -1116,7 +1161,7 @@ Admin
            $pdf->SetFont('Arial','',12);  
             $pdf->SetXY(60 ,180);  
            $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
           $pdf->SetXY(172 ,180);  
            $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
            $pdf->Output($certificate_file_path,'F');//die();
@@ -1182,12 +1227,9 @@ Admin
         $pdf->Write(0, $post['hygiene_test_score']."/7");
         $pdf->SetTextColor(0,0,0);
         $pdf->SetFont('Arial','',12);
-        $pdf->SetXY(29, 77);
-        $pdf->Write(0, translate($post['hygiene_q_1']));
-        $pdf->SetXY(29, 158);
-        $pdf->Write(0, translate($post['hygiene_q_2']));
-        $pdf->SetXY(29, 212);
-        $pdf->Write(0, translate($post['hygiene_q_3']));
+        hh_pdf_write_answer_circled($pdf, 29, 77, translate($post['hygiene_q_1']));
+        hh_pdf_write_answer_circled($pdf, 29, 158, translate($post['hygiene_q_2']));
+        hh_pdf_write_answer_circled($pdf, 29, 212, translate($post['hygiene_q_3']));
 
          $pdf->AddPage();  
         // set the sourcefile  
@@ -1198,14 +1240,10 @@ Admin
         $pdf->useTemplate($tplIdx, 10, 10, 200);  
 
          $pdf->SetFont('Arial','',12);
-        $pdf->SetXY(29, 29);
-        $pdf->Write(0, translate($post['hygiene_q_4']));
-        $pdf->SetXY(20, 83);
-        $pdf->Write(0, translate($post['hygiene_q_5']));
-        $pdf->SetXY(29, 115);
-        $pdf->Write(0, translate($post['hygiene_q_6']));
-        $pdf->SetXY(29, 182);
-        $pdf->Write(0, translate($post['hygiene_q_7']));
+        hh_pdf_write_answer_circled($pdf, 29, 29, translate($post['hygiene_q_4']));
+        hh_pdf_write_answer_circled($pdf, 20, 83, translate($post['hygiene_q_5']));
+        hh_pdf_write_answer_circled($pdf, 29, 115, translate($post['hygiene_q_6']));
+        hh_pdf_write_answer_circled($pdf, 29, 182, translate($post['hygiene_q_7']));
                 // $pdf->Image($signature2,25,140,100,40,"PNG");
                 // $pdf->Image($signature3,25,160,100,40,"PNG");
     // echo $pdf_consent_file;die();
@@ -1243,7 +1281,7 @@ Admin
          $pdf->SetFont('Arial','',12);  
           $pdf->SetXY(60 ,180);  
          $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
         $pdf->SetXY(172 ,180);  
          $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
               $pdf->Output($certificate_file_path,'F');//die();
@@ -1251,7 +1289,9 @@ Admin
     }
 
       if($test_type == 'emergency'){
-        $date_label=date('m/d/Y',strtotime($post['emergency_test_date']));
+        $date_label = !empty($post['emergency_test_date'])
+          ? date('m/d/Y', strtotime($post['emergency_test_date']))
+          : '';
 
         $pdf_file = "pdf/test_emergency.pdf";
         $passing_score = 6;
@@ -1305,27 +1345,15 @@ Admin
          // $pdf->SetFont('Arial','',10);  
 
 
-        $pdf->Write(0, $post['emergency_test_score']."/6");
+        $pdf->Write(0, ($post['emergency_test_score'] ?? $test_score)."/6");
         $pdf->SetTextColor(0,0,0);
         $pdf->SetFont('Arial','',12);  
-        $pdf->SetXY(20,42);  
-        $pdf->Write(0, translate($post['emergency_q_1']));
-
-        $pdf->SetXY(20,81);  
-        $pdf->Write(0, translate($post['emergency_q_2']));
-      
-         $pdf->SetXY(20,121);  
-        $pdf->Write(0, translate($post['emergency_q_3']));
-
-
-         $pdf->SetXY(16,165);  
-         $pdf->Write(0, translate($post['emergency_q_4']));
-
-           $pdf->SetXY(16,184);  
-         $pdf->Write(0, translate($post['emergency_q_5']));
-
-          $pdf->SetXY(16,203);  
-         $pdf->Write(0, translate($post['emergency_q_6']));
+        test_pdf_write_answer_circled($pdf, 20, 42, translate($post['emergency_q_1']), 12);
+        test_pdf_write_answer_circled($pdf, 20, 81, translate($post['emergency_q_2']), 12);
+        test_pdf_write_answer_circled($pdf, 20, 121, translate($post['emergency_q_3']), 12);
+        test_pdf_write_answer_circled($pdf, 16, 165, translate($post['emergency_q_4']), 12);
+        test_pdf_write_answer_circled($pdf, 16, 184, translate($post['emergency_q_5']), 12);
+        test_pdf_write_answer_circled($pdf, 16, 203, translate($post['emergency_q_6']), 12);
 
                 // $pdf->Image($signature2,25,140,100,40,"PNG");
                 // $pdf->Image($signature3,25,160,100,40,"PNG");
@@ -1366,7 +1394,7 @@ Admin
          $pdf->SetFont('Arial','',12);  
           $pdf->SetXY(60 ,180);  
          $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
         $pdf->SetXY(172 ,180);  
          $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
               $pdf->Output($certificate_file_path,'F');//die();
@@ -1415,26 +1443,13 @@ Admin
          $pdf->SetXY(162,20);  
          
         $pdf->SetFont('Arial','',10);  
-        $pdf->SetXY(18,67);  
-        $pdf->Write(0, translate($post['covid_q_1']));
-
-        $pdf->SetXY(18,85);  
-        $pdf->Write(0, translate($post['covid_q_2']));
-      
-         $pdf->SetXY(18,105);  
-        $pdf->Write(0, translate($post['covid_q_3']));
-
-        $pdf->SetXY(18,127);  
-        $pdf->Write(0, translate($post['covid_q_4']));
-
-        $pdf->SetXY(18,143);  
-        $pdf->Write(0, translate($post['covid_q_5']));
-
-          $pdf->SetXY(18,159);  
-        $pdf->Write(0, translate($post['covid_q_6']));
-
-          $pdf->SetXY(18,173);  
-        $pdf->Write(0, translate($post['covid_q_7']));
+        test_pdf_write_answer_circled($pdf, 18, 67, translate($post['covid_q_1']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 85, translate($post['covid_q_2']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 105, translate($post['covid_q_3']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 127, translate($post['covid_q_4']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 143, translate($post['covid_q_5']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 159, translate($post['covid_q_6']), 10);
+        test_pdf_write_answer_circled($pdf, 18, 173, translate($post['covid_q_7']), 10);
 
        $pdf->SetXY(175,191);  
         $pdf->Write(0, translate($percentage)." %");
@@ -1493,7 +1508,7 @@ Admin
          $pdf->SetFont('Arial','',12);  
           $pdf->SetXY(60 ,180);  
          $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
         $pdf->SetXY(172 ,180);  
          $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
               $pdf->Output($certificate_file_path,'F');//die();
@@ -1560,37 +1575,16 @@ Admin
           // }
          
         $pdf->SetFont('Arial','',10);  
-        $pdf->SetXY(23,71);  
-        $pdf->Write(0, translate($post['glucometer_q_1']));
-
-        $pdf->SetXY(23,91);  
-        $pdf->Write(0, translate($post['glucometer_q_2']));
-
-        $pdf->SetXY(23,108);  
-        $pdf->Write(0, translate($post['glucometer_q_3']));
-
-        $pdf->SetXY(23,129);  
-        $pdf->Write(0, translate($post['glucometer_q_4']));
-
-        $pdf->SetXY(23,145);  
-        $pdf->Write(0, translate($post['glucometer_q_5']));
-
-         $pdf->SetXY(23,161);  
-        $pdf->Write(0, translate($post['glucometer_q_6']));
-
-         $pdf->SetXY(23,178);  
-        $pdf->Write(0, translate($post['glucometer_q_7']));
-
-            $pdf->SetXY(23,199);  
-        $pdf->Write(0, translate($post['glucometer_q_8']));
-
-         $pdf->SetXY(23,219);  
-        $pdf->Write(0, translate($post['glucometer_q_9']));
-
-
-         $pdf->SetXY(23,236);  
-        $pdf->Write(0, translate($post['glucometer_q_10']));
-
+        test_pdf_write_answer_circled($pdf, 23, 71, translate($post['glucometer_q_1']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 91, translate($post['glucometer_q_2']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 108, translate($post['glucometer_q_3']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 129, translate($post['glucometer_q_4']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 145, translate($post['glucometer_q_5']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 161, translate($post['glucometer_q_6']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 178, translate($post['glucometer_q_7']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 199, translate($post['glucometer_q_8']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 219, translate($post['glucometer_q_9']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 236, translate($post['glucometer_q_10']), 10);
 
          $pdf->AddPage();  
         // set the sourcefile  
@@ -1600,26 +1594,13 @@ Admin
           $pdf->useTemplate($tplIdx, 10, 10, 200); 
 
           $pdf->SetFont('Arial','',10);  
-        $pdf->SetXY(23,39);  
-        $pdf->Write(0, translate($post['glucometer_q_11']));
-
-         $pdf->SetXY(25,59);  
-        $pdf->Write(0, translate($post['glucometer_q_12']));
-
-         $pdf->SetXY(25,83);  
-        $pdf->Write(0, translate($post['glucometer_q_13']));
-
-          $pdf->SetXY(25,115);  
-        $pdf->Write(0, translate($post['glucometer_q_14']));
-
-           $pdf->SetXY(23,145);  
-        $pdf->Write(0, translate($post['glucometer_q_15']));
-
-         $pdf->SetXY(25,176);  
-        $pdf->Write(0, translate($post['glucometer_q_16']));
-
-           $pdf->SetXY(25,208);  
-        $pdf->Write(0, translate($post['glucometer_q_17']));
+        test_pdf_write_answer_circled($pdf, 23, 39, translate($post['glucometer_q_11']), 10);
+        test_pdf_write_answer_circled($pdf, 25, 59, translate($post['glucometer_q_12']), 10);
+        test_pdf_write_answer_circled($pdf, 25, 83, translate($post['glucometer_q_13']), 10);
+        test_pdf_write_answer_circled($pdf, 25, 115, translate($post['glucometer_q_14']), 10);
+        test_pdf_write_answer_circled($pdf, 23, 145, translate($post['glucometer_q_15']), 10);
+        test_pdf_write_answer_circled($pdf, 25, 176, translate($post['glucometer_q_16']), 10);
+        test_pdf_write_answer_circled($pdf, 25, 208, translate($post['glucometer_q_17']), 10);
     
     
         $pdf->Output($pdf_test_file_path,'F');//die();
@@ -1659,7 +1640,7 @@ Admin
          $pdf->SetFont('Arial','',12);  
           $pdf->SetXY(60 ,180);  
          $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
         $pdf->SetXY(172 ,180);  
          $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
               $pdf->Output($certificate_file_path,'F');//die();
@@ -1715,124 +1696,64 @@ Admin
           // }
          
         $pdf->SetFont('Arial','',9);  
-        $pdf->SetXY(15,38);  
-        $pdf->Write(0, translate($post['bloodpatho_q_1']));
-
-          $pdf->SetXY(15,45);  
-        $pdf->Write(0, translate($post['bloodpatho_q_2']));
-
-          $pdf->SetXY(15,52);  
-        $pdf->Write(0, translate($post['bloodpatho_q_3']));
-
-        $pdf->SetXY(15,59.5);  
-        $pdf->Write(0, translate($post['bloodpatho_q_4']));
+        test_pdf_write_answer_circled($pdf, 15, 38, translate($post['bloodpatho_q_1']));
+        test_pdf_write_answer_circled($pdf, 15, 45, translate($post['bloodpatho_q_2']));
+        test_pdf_write_answer_circled($pdf, 15, 52, translate($post['bloodpatho_q_3']));
+        test_pdf_write_answer_circled($pdf, 15, 59.5, translate($post['bloodpatho_q_4']));
 
         if($post['bloodpatho_q_5'] == 'a'){
-
-          $pdf->SetXY(15,71);  
-           $pdf->Write(0, 'HIV');
+          test_pdf_write_text_circled($pdf, 15, 71, 'HIV');
         }elseif($post['bloodpatho_q_5'] == 'b'){
-           $pdf->SetXY(15,71);  
-           $pdf->Write(0, 'HBV');
+          test_pdf_write_text_circled($pdf, 15, 71, 'HBV');
         }elseif($post['bloodpatho_q_5'] == 'c'){
-           $pdf->SetXY(15,71);  
-           $pdf->Write(0, 'HCV');
+          test_pdf_write_text_circled($pdf, 15, 71, 'HCV');
         }
-         $pdf->SetFont('Arial','',7);
         if($post['bloodpatho_q_6'] == 'a'){
-
-          $pdf->SetXY(3,79.5);  
-           $pdf->Write(0, 'Green or Blue');
+          test_pdf_write_text_circled($pdf, 3, 79.5, 'Green or Blue', 7, 0);
         }elseif($post['bloodpatho_q_6'] == 'b'){
-           $pdf->SetXY(3,79.5);  
-           $pdf->Write(0, 'Red or Red-Orange');
+          test_pdf_write_text_circled($pdf, 3, 79.5, 'Red or Red-Orange', 7, 0);
         }elseif($post['bloodpatho_q_6'] == 'c'){
-           $pdf->SetXY(3,79.5);  
-           $pdf->Write(0, 'Clear or Black');
+          test_pdf_write_text_circled($pdf, 3, 79.5, 'Clear or Black', 7, 0);
         }
 
-          $pdf->SetFont('Arial','',9);
-        
-
-        $pdf->SetXY(15,86);  
-        $pdf->Write(0, translate($post['bloodpatho_q_7']));
-       $pdf->SetFont('Arial','',9);
+        test_pdf_write_answer_circled($pdf, 15, 86, translate($post['bloodpatho_q_7']));
         if($post['bloodpatho_q_8'] == 'a'){
-
-          $pdf->SetXY(10,98);  
-           $pdf->Write(0, 'Monthly');
+          test_pdf_write_text_circled($pdf, 10, 98, 'Monthly');
         }elseif($post['bloodpatho_q_8'] == 'b'){
-           $pdf->SetXY(10,98);  
-           $pdf->Write(0, 'Annually');
+          test_pdf_write_text_circled($pdf, 10, 98, 'Annually');
         }elseif($post['bloodpatho_q_8'] == 'c'){
-           $pdf->SetXY(10,98);  
-           $pdf->Write(0, 'One each decade');
+          test_pdf_write_text_circled($pdf, 10, 98, 'One each decade');
         }
 
         if($post['bloodpatho_q_9'] == 'a'){
-
-          $pdf->SetXY(15,105);  
-           $pdf->Write(0, 'Heart');
+          test_pdf_write_text_circled($pdf, 15, 105, 'Heart');
         }elseif($post['bloodpatho_q_9'] == 'b'){
-           $pdf->SetXY(15,105);  
-           $pdf->Write(0, 'Lungs');
+          test_pdf_write_text_circled($pdf, 15, 105, 'Lungs');
         }elseif($post['bloodpatho_q_9'] == 'c'){
-           $pdf->SetXY(15,105);  
-           $pdf->Write(0, 'Liver');
+          test_pdf_write_text_circled($pdf, 15, 105, 'Liver');
+        }elseif($post['bloodpatho_q_9'] == 'd'){
+          test_pdf_write_text_circled($pdf, 15, 105, 'Pancreas');
         }
-        elseif($post['bloodpatho_q_9'] == 'd'){
-           $pdf->SetXY(15,105);  
-           $pdf->Write(0, 'Pancreas');
-        }
-        $pdf->SetXY(15,113);  
-        $pdf->Write(0, translate($post['bloodpatho_q_10']));
-       $pdf->SetFont('Arial','',9);
-
-        $pdf->SetXY(15,120);  
-        $pdf->Write(0, translate($post['bloodpatho_q_11']));
-       $pdf->SetFont('Arial','',9);
-        
+        test_pdf_write_answer_circled($pdf, 15, 113, translate($post['bloodpatho_q_10']));
+        test_pdf_write_answer_circled($pdf, 15, 120, translate($post['bloodpatho_q_11']));
         if($post['bloodpatho_q_12'] == 'a'){
-
-          $pdf->SetXY(15,128);  
-           $pdf->Write(0, '100%');
+          test_pdf_write_text_circled($pdf, 15, 128, '100%');
         }elseif($post['bloodpatho_q_12'] == 'b'){
-           $pdf->SetXY(15,128);  
-           $pdf->Write(0, '95%');
+          test_pdf_write_text_circled($pdf, 15, 128, '95%');
         }elseif($post['bloodpatho_q_12'] == 'c'){
-           $pdf->SetXY(15,128);  
-           $pdf->Write(0, '90%');
-        }
-        elseif($post['bloodpatho_q_12'] == 'd'){
-           $pdf->SetXY(15,128);  
-           $pdf->Write(0, '70%');
+          test_pdf_write_text_circled($pdf, 15, 128, '90%');
+        }elseif($post['bloodpatho_q_12'] == 'd'){
+          test_pdf_write_text_circled($pdf, 15, 128, '70%');
         }
 
-        $pdf->SetXY(15,139);  
-        $pdf->Write(0, translate($post['bloodpatho_q_13']));
-
-        $pdf->SetXY(15,147);  
-        $pdf->Write(0, translate($post['bloodpatho_q_14']));
-
-          $pdf->SetXY(15,154);  
-        $pdf->Write(0, translate($post['bloodpatho_q_15']));
-
-         $pdf->SetXY(15,161);  
-        $pdf->Write(0, translate($post['bloodpatho_q_16']));
-
-          $pdf->SetXY(15,169);  
-        $pdf->Write(0, translate($post['bloodpatho_q_17']));
-
-
-          $pdf->SetXY(15,176);  
-        $pdf->Write(0, translate($post['bloodpatho_q_18']));
-
-
-         $pdf->SetXY(15,184);  
-        $pdf->Write(0, translate($post['bloodpatho_q_19']));
-
-        $pdf->SetXY(15,191.5);  
-        $pdf->Write(0, translate($post['bloodpatho_q_20']));
+        test_pdf_write_answer_circled($pdf, 15, 139, translate($post['bloodpatho_q_13']));
+        test_pdf_write_answer_circled($pdf, 15, 147, translate($post['bloodpatho_q_14']));
+        test_pdf_write_answer_circled($pdf, 15, 154, translate($post['bloodpatho_q_15']));
+        test_pdf_write_answer_circled($pdf, 15, 161, translate($post['bloodpatho_q_16']));
+        test_pdf_write_answer_circled($pdf, 15, 169, translate($post['bloodpatho_q_17']));
+        test_pdf_write_answer_circled($pdf, 15, 176, translate($post['bloodpatho_q_18']));
+        test_pdf_write_answer_circled($pdf, 15, 184, translate($post['bloodpatho_q_19']));
+        test_pdf_write_answer_circled($pdf, 15, 191.5, translate($post['bloodpatho_q_20']));
 
         // $pdf->Output($pdf_test_file_path,'I');die();
 
@@ -1876,7 +1797,7 @@ Admin
          $pdf->SetFont('Arial','',12);  
           $pdf->SetXY(60 ,180);  
          $pdf->MultiCell( 57, 3,"DATE: ".$date_label,0,'C');
-           $pdf->Image($staff_signature,190,164,60,20,"PNG");
+           pdf_place_staff_signature($pdf, $staff_signature, 190, 164, 60, 20);
         $pdf->SetXY(172 ,180);  
          $pdf->MultiCell( 57, 3,"BY: ".$post['staff_name'],0,'C');
               $pdf->Output($certificate_file_path,'F');//die();
